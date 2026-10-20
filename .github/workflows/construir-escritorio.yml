@@ -1,0 +1,108 @@
+# Genera los instaladores de escritorio de CODEAPA.
+#
+# Se lanza a mano desde la pestaña "Actions" del repositorio. Cada sistema se
+# compila en su propia máquina, que es la única forma de producir un .exe de
+# Windows y un .dmg de macOS.
+#
+# Los archivos quedan como "artifacts" descargables al final de la ejecución.
+name: Construir aplicación de escritorio
+
+on:
+  workflow_dispatch:
+    inputs:
+      sistemas:
+        description: "Qué sistemas construir"
+        required: true
+        default: "solo-windows"
+        type: choice
+        options:
+          - solo-windows
+          - windows-y-mac
+          - todos
+
+jobs:
+  construir:
+    name: ${{ matrix.nombre }}
+    runs-on: ${{ matrix.so }}
+
+    strategy:
+      # Que un sistema falle no debe cancelar los demás.
+      fail-fast: false
+      matrix:
+        include:
+          - nombre: Windows
+            so: windows-latest
+            comando: dist:win
+            artefacto: CODEAPA-windows
+            patron: |
+              dist-escritorio/*.exe
+              dist-escritorio/*.blockmap
+          - nombre: macOS
+            so: macos-latest
+            comando: dist:mac
+            artefacto: CODEAPA-macos
+            patron: |
+              dist-escritorio/*.dmg
+              dist-escritorio/*.dmg.blockmap
+              dist-escritorio/*.zip
+              dist-escritorio/*.zip.blockmap
+          - nombre: Linux
+            so: ubuntu-latest
+            comando: dist:linux
+            artefacto: CODEAPA-linux
+            patron: dist-escritorio/*.AppImage
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      # Windows siempre se construye. Los demás, solo si se han pedido.
+      - name: Decidir si toca construir este sistema
+        id: procede
+        shell: bash
+        run: |
+          eleccion="${{ inputs.sistemas }}"
+          sistema="${{ matrix.nombre }}"
+          construir="no"
+
+          if [ "$sistema" = "Windows" ]; then
+            construir="si"
+          elif [ "$sistema" = "macOS" ] && [ "$eleccion" != "solo-windows" ]; then
+            construir="si"
+          elif [ "$sistema" = "Linux" ] && [ "$eleccion" = "todos" ]; then
+            construir="si"
+          fi
+
+          echo "construir=$construir" >> "$GITHUB_OUTPUT"
+          echo "Sistema $sistema → construir: $construir"
+
+      - name: Preparar Node.js
+        if: steps.procede.outputs.construir == 'si'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependencias
+        if: steps.procede.outputs.construir == 'si'
+        run: npm ci
+
+      - name: Generar el cliente de Prisma
+        if: steps.procede.outputs.construir == 'si'
+        run: npx prisma generate
+
+      - name: Construir el paquete
+        if: steps.procede.outputs.construir == 'si'
+        run: npm run ${{ matrix.comando }}
+        env:
+          # Sin firma de código: no hay certificado de pago configurado.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      - name: Publicar el resultado
+        if: steps.procede.outputs.construir == 'si'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artefacto }}
+          path: ${{ matrix.patron }}
+          if-no-files-found: error
+          retention-days: 30
