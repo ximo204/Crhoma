@@ -1,0 +1,24 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Tema claro fijo y deliberado (no depende del modo oscuro del sistema):
+  en un panel clínico la legibilidad y el contraste no deberían cambiar
+  según la configuración del ordenador de cada persona.
+*/
+:root {
+  --background: #f8fafc; /* slate-50 */
+  --foreground: #0f172a; /* slate-900 */
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}

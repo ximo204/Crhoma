@@ -1,0 +1,120 @@
+{
+  "name": "codeapa-app",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CODEAPA — seguimiento de diabetes y heridas crónicas complejas sobre la base de pacientes CRHOMA (AGS Campo de Gibraltar Este)",
+  "author": "Javier Gómez Moleón",
+  "main": "electron/main.js",
+  "scripts": {
+    "postinstall": "node scripts/disable-native-swc.js",
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:push": "prisma db push",
+    "db:seed": "prisma db seed",
+    "db:studio": "prisma studio",
+    "db:generate": "prisma generate",
+    "icono": "node scripts/generar-icono.js 512",
+    "desktop:preparar": "npm run build && node scripts/preparar-escritorio.js && npm run icono",
+    "desktop:probar": "electron .",
+    "dist:win": "npm run desktop:preparar && electron-builder --win",
+    "dist:mac": "npm run desktop:preparar && electron-builder --mac",
+    "dist:linux": "npm run desktop:preparar && electron-builder --linux"
+  },
+  "dependencies": {
+    "@next/swc-wasm-nodejs": "14.2.33",
+    "@prisma/client": "^6.19.3",
+    "next": "14.2.35",
+    "react": "^18",
+    "react-dom": "^18",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "dotenv": "^17.4.2",
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "eslint": "^8",
+    "eslint-config-next": "14.2.35",
+    "postcss": "^8",
+    "prisma": "^6.19.3",
+    "tailwindcss": "^3.4.1",
+    "tsx": "^4.23.12",
+    "typescript": "^5"
+  },
+  "build": {
+    "appId": "es.juntadeandalucia.sas.agscge.codeapa",
+    "productName": "CODEAPA",
+    "copyright": "AGS Campo de Gibraltar Este — Servicio Andaluz de Salud",
+    "directories": {
+      "output": "dist-escritorio",
+      "buildResources": "build"
+    },
+    "files": ["electron/**/*", "build/icon.png", "!node_modules/**/*"],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "server"
+      },
+      {
+        "from": "prisma/plantilla.db",
+        "to": "plantilla.db"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "CODEAPA-${version}-${arch}-${ext}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "CODEAPA",
+      "installerLanguages": ["es_ES"],
+      "language": "1034"
+    },
+    "portable": {
+      "artifactName": "CODEAPA-${version}-portable.exe"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "public.app-category.medical",
+      "artifactName": "CODEAPA-${version}-${arch}.${ext}",
+      "darkModeSupport": true,
+      "minimumSystemVersion": "11.0",
+      "identity": null
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "icon": "build/icon.png",
+      "category": "Science",
+      "maintainer": "AGS Campo de Gibraltar Este"
+    },
+    "afterPack": "scripts/despues-de-empaquetar.js"
+  }
+}
