@@ -1,0 +1,409 @@
+// This is your Prisma schema file for CODEAPA (SQLite Local)
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+
+  // Motores de consulta que se incluyen al generar el cliente.
+  // "native" es la máquina donde se desarrolla; los demás permiten empaquetar
+  // la aplicación de escritorio para Windows y macOS (ver electron/main.js).
+  binaryTargets = ["native", "windows", "darwin", "darwin-arm64"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Modelo de datos del área CODEAPA (seguimiento de diabetes en Atención Primaria).
+// Funciona 100% en local con SQLite sin dependencias externas en la nube.
+// ---------------------------------------------------------------------------
+
+model Paciente {
+  id              String    @id @default(cuid())
+  /// Número único de historia de salud de Andalucía
+  nuhsa           String    @unique
+  nombre          String?
+  sexo            String    // 'H' | 'M'
+  fechaNacimiento DateTime?
+
+  centroSalud     String?   // DESC_CAP
+  claveMedica     String?
+  claveEnfermeria String?
+  claveEquipo     String?
+
+  /// PAC_INMOVILIZADO (Infoweb). Relevante para riesgo de úlceras por presión.
+  inmovilizado      Boolean?
+  /// PAC_RESIDENCIA (Infoweb). Relevante para riesgo de úlceras por presión.
+  viveEnResidencia  Boolean?
+
+  tipoDiabetes        String?   // 'TIPO_1' | 'TIPO_2' | 'GESTACIONAL' | 'LADA' | 'SECUNDARIA_FARMACOS' | 'OTRA'
+  tratamientoDiabetes String?   // JSON con lista de tratamientos seleccionados o texto
+  
+  mcgEstado              String?   // 'SI' | 'NO' | 'DEBERIA'
+  mcgIntegracionSAS      Boolean?  @default(false)
+  mcgRevisionesTrim      Boolean?  @default(false)
+  mcgProximaRevision     DateTime?
+  embarazo               Boolean?  @default(false)
+
+  tiempoEvolucionDiabetes        String? // '<=5' | '5-10' | '>=10' | texto
+  controlEvolucion               String? // 'BUENO' | 'MALO'
+  antecedentesFamiliaresDiabetes String? // 'S' | 'N' | '1_GRADO' | '2_GRADO' | '3_GRADO'
+  diabetesGestacionalPrevia      String? // 'S' | 'N' | 'NO_SIGUE' | 'SIGUE' | 'APARECE_A_LOS_X'
+
+  perfilControlGlucemico String   @default("GENERAL") // 'GENERAL' | 'ANCIANO_FRAGIL' | 'DM1_INTENSIVO' | 'GESTACION'
+
+  antecedentesFamiliaresECVPrecoz Boolean?
+
+  // Notas u observaciones libres del profesional sobre el paciente.
+  // Columna añadida después de distribuir la app: ver src/lib/actualizarBaseDatos.ts.
+  notas String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  visitas                   VisitaPeriodo[]
+  mediciones                Medicion[]
+  controlesTA               ControlTA[]
+  controlesGlicada          ControlGlicada[]
+  exploracionesPie          ExploracionPie[]
+  retinografias             Retinografia[]
+  controlesRenales          ControlRenal[]
+  controlesHepaticos        ControlHepatico[]
+  controlesCardiovasculares ControlCardiovascular[]
+  cribadosClaudicacion      CribadoClaudicacion[]
+  controlesMetabolicos      ControlMetabolico[]
+  controlesAnemia           ControlAnemia[]
+  cribadosObesidad          CribadoObesidad[]
+  complicaciones            Complicaciones?
+  heridas                   Herida[]
+}
+
+/// Registro de Período / Visita histórica
+model VisitaPeriodo {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  periodo    String   // Ej: "2026", "2025", "2024" o "2026-Q1"
+  fecha      DateTime @default(now())
+  notas      String?
+
+  @@index([pacienteId, fecha])
+}
+
+model ControlRenal {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  fecha      DateTime @default(now())
+  periodo    String?
+
+  fge Float?
+  cac Float?
+
+  creatinina  Float?
+  potasio     Float?
+  bicarbonato Float?
+  pth         Float?
+  vitaminaD   Float?
+
+  @@index([pacienteId, fecha])
+}
+
+model ControlHepatico {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  fecha      DateTime @default(now())
+  periodo    String?
+
+  alt       Float?
+  ast       Float?
+  plaquetas Float?
+
+  ggt                 Float?
+  lsmKpa              Float?
+  capDbM              Float?
+  bilirrubinaTotal    Float?
+  albuminaSerica      Float?
+  inr                 Float?
+  serologiasPositivas Boolean?
+
+  @@index([pacienteId, fecha])
+}
+
+model Medicion {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  fecha      DateTime @default(now())
+  periodo    String?
+
+  pesoKg             Float?
+  tallaM             Float?
+  perimetroCinturaCm Float?
+  perimetroCaderaCm  Float?
+
+  @@index([pacienteId, fecha])
+}
+
+model CribadoObesidad {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  fecha      DateTime @default(now())
+  periodo    String?
+
+  eossEstadio        Int?
+  stopBangPuntuacion Int?
+  sospechaTCA        Boolean?
+
+  @@index([pacienteId, fecha])
+}
+
+model ControlTA {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  fecha      DateTime @default(now())
+  periodo    String?
+
+  pas Int?
+  pad Int?
+
+  @@index([pacienteId, fecha])
+}
+
+model ControlGlicada {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  fecha      DateTime @default(now())
+  periodo    String?
+
+  hba1c Float?
+
+  @@index([pacienteId, fecha])
+}
+
+model ExploracionPie {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  fecha      DateTime @default(now())
+  periodo    String?
+
+  realizado                    Boolean? @default(true)
+  monofilamentoNormal          Boolean?
+  diapasonNormal               Boolean?
+  deformidad                   Boolean?
+  enfermedadArterialPeriferica Boolean?
+  antecedenteUlceraOAmputacion Boolean?
+  itb                          Float?
+  morfologiaDoppler            String? // 'TRIFASICA' | 'BIFASICA' | 'MONOFASICA' | 'ONDA_VARIABLE'
+
+  @@index([pacienteId, fecha])
+}
+
+model ControlCardiovascular {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  fecha      DateTime @default(now())
+  periodo    String?
+
+  frecuenciaCardiaca Int?
+  colesterolTotal    Float?
+  cLDL               Float?
+  cHDL               Float?
+  trigliceridos      Float?
+  ntProBnp           Float?
+  lpA                Float?
+  riesgoScorePrevent Float?
+
+  @@index([pacienteId, fecha])
+}
+
+model CribadoClaudicacion {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  fecha      DateTime @default(now())
+  periodo    String?
+
+  q1DolorAlCaminar       Boolean?
+  q2ApareceEnReposo      Boolean?
+  q3ApareceAlSubirCuesta Boolean?
+  q4ApareceEnLlano       Boolean?
+  q5DesaparaceEnReposo   Boolean?
+  q6Localizacion         String? // 'PANTORRILLA' | 'MUSLO_GLUTEO' | 'OTRA'
+
+  @@index([pacienteId, fecha])
+}
+
+model ControlMetabolico {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  fecha      DateTime @default(now())
+  periodo    String?
+
+  glucemiaBasal Float?
+  fechaGB       DateTime?
+  tsh           Float?
+  sogGlucemia2h Float?
+
+  @@index([pacienteId, fecha])
+}
+
+model ControlAnemia {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  fecha      DateTime @default(now())
+  periodo    String?
+
+  hb            Float?
+  vcm           Float?
+  hcm           Float?
+  chcm          Float?
+  ferritina     Float?
+  ist           Float?
+  vitaminaB12   Float?
+  acidoFolico   Float?
+  reticulocitos Float?
+  pcr           Float?
+
+  @@index([pacienteId, fecha])
+}
+
+model Retinografia {
+  id         String   @id @default(cuid())
+  pacienteId String
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  fecha      DateTime @default(now())
+  periodo    String?
+
+  realizada Boolean? @default(true)
+  resultado String?  // 'NORMAL' | 'PATOLOGICA' | 'NO_REALIZADA'
+
+  @@index([pacienteId, fecha])
+}
+
+/// Checklist de complicaciones
+model Complicaciones {
+  id         String   @id @default(cuid())
+  pacienteId String   @unique
+  paciente   Paciente @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+
+  retinopatiaDiabetica         Boolean @default(false)
+  nefropatiaDiabetica          Boolean @default(false)
+  neuropatiaPeriferica         Boolean @default(false)
+  cardiopatiaIsquemica         Boolean @default(false)
+  enfermedadCerebrovascular    Boolean @default(false)
+  arteriopatiaPeriferica       Boolean @default(false)
+  ulceraPieDiabetico           Boolean @default(false)
+  amputacion                   Boolean @default(false)
+  deformidadPieCharcot         Boolean @default(false)
+  insuficienciaCardiaca        Boolean @default(false)
+  enfermedadHepaticaMetabolica Boolean @default(false)
+  gastroparesiaDiabetica       Boolean @default(false)
+  deterioroCognitivo           Boolean @default(false)
+
+  manualOverride               Boolean @default(false)
+  updatedAt                    DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// Modelos del módulo de Heridas Complejas y Úlceras (integrado en CRHOMA)
+// ---------------------------------------------------------------------------
+
+model Herida {
+  id           String             @id @default(cuid())
+  pacienteId   String
+  paciente     Paciente           @relation(fields: [pacienteId], references: [id], onDelete: Cascade)
+  codigo       String             // Ej: "HER-01", "UPP-SACRO", "UDP-METATARSO"
+  /// Valores de TIPO_HERIDA_OPTS en src/lib/heridas/catalogo.ts.
+  /// "LPP" | "venosa" | "arterial" | "pie_diabetico" | "quemadura" |
+  /// "quirurgica" | "traumatica" | "oncologica" | "injerto"
+  etiologia    String
+  localizacion String
+  fechaInicio  DateTime?
+  estado       String             @default("ACTIVA") // "ACTIVA" | "CICATRIZADA" | "ESTABLE" | "DERIVADA"
+  notas        String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  valoraciones ValoracionHerida[]
+  fotos        FotoHerida[]
+
+  @@index([pacienteId])
+}
+
+/// Fotografía clínica de una herida. Se guarda como blob dentro de la misma
+/// base SQLite (no como archivo aparte), para que la copia de seguridad
+/// siga siendo "copiar un único archivo .db" como el resto de la app.
+model FotoHerida {
+  id         String   @id @default(cuid())
+  heridaId   String
+  herida     Herida   @relation(fields: [heridaId], references: [id], onDelete: Cascade)
+  datos      Bytes
+  tipoMime   String   // "image/jpeg" | "image/png" | "image/webp"
+  comentario String?
+  /// Fecha de guardado de la foto (no necesariamente la fecha en que se tomó).
+  fecha      DateTime @default(now())
+
+  @@index([heridaId, fecha])
+}
+
+model ValoracionHerida {
+  id                      String    @id @default(cuid())
+  heridaId                String
+  herida                  Herida    @relation(fields: [heridaId], references: [id], onDelete: Cascade)
+  fecha                   DateTime  @default(now())
+
+  // Dimensiones
+  largoCm                 Float?
+  anchoCm                 Float?
+  profundidadCm           Float?
+  superficieCm2           Float?
+
+  // Escala RESVECH 2.0
+  superficieIdx           Int?
+  profundidadIdx          Int?
+  bordesIdx               Int?
+  tejidoIdx               Int?
+  exudadoIdx              Int?
+  infeccionItems          String?   // JSON array de 12 booleanos
+  infeccionConfirmada     Boolean?  @default(false)
+  resvechTotal            Int?
+
+  // Exploración Vascular & ITB integrada con CRHOMA
+  pasBrazoD               Float?
+  pasBrazoI               Float?
+  pasPedioD               Float?
+  pasTibialD              Float?
+  pasPedioI               Float?
+  pasTibialI              Float?
+  itbDerecho              Float?
+  itbIzquierdo            Float?
+  dopplerDerecho          String?
+  dopplerIzquierdo        String?
+  buergerAngulo           String?
+  buergerRubor            String?
+  fontaineEstadio         String?
+  recomendacionCompresion String?
+
+  // Pauta de Cura y Tratamiento
+  apositoPrincipal        String?
+  apositoSecundario       String?
+  terapiaCompresivaPautada String?
+  frecuenciaCuras         String?
+  observacionesCura       String?
+
+  createdAt               DateTime  @default(now())
+
+  @@index([heridaId, fecha])
+}
+
